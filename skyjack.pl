@@ -22,7 +22,7 @@ my $interface  = shift || "wlan1";
 my $interface2 = shift || "wlan0";
 
 # the JS to control our drone
-my $controljs  = shift || "drone_control/drone_pwn.js";
+my $controljs  = shift || "lib/index.js";
 
 # paths to applications
 my $dhclient	= "dhclient";
