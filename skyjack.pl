@@ -53,7 +53,7 @@ while (1)
 			print "pid $pid\n";
 
 			# wait 5 seconds then kill
-			sleep 2;
+			sleep 6;
 			print DUMP "\cC";
 			sleep 1;
 			sudo("kill", $pid);
@@ -145,7 +145,7 @@ while (1)
 				
 		}
 
-	sleep 5;
+	sleep 2;
 }
 
 	
