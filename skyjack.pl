@@ -135,7 +135,6 @@ while (1)
 		my $drone_and_client = 0;
 		my $drone_with_client_mac = "";
 		my $dcPid = fork();
-		
 
 		if ($cli_size > 0){
 			foreach my $cli (keys %clients){	
@@ -204,7 +203,6 @@ while (1)
 				### DONE LOG ###
 				my $data = '{"event":"controlled", "drone_mac_address":"'. $drone_with_client_mac .'"}';
 				$client->POST($shepherd_app_url . $logs_path, $data);
-
 				#sleep 1;
                         	#sudo("kill", "-9", $aireplay);
 				sleep 2;
